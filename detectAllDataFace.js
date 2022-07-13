@@ -11,22 +11,6 @@ const { Canvas, Image, ImageData } = canvas;
 
 faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
 
-const fs = require('fs');
-
-
-//mode face detection
-let optionsSSDMobileNet;
-
-//function prepare image file
-async function image(file) {
-  const decoded = tf.node.decodeImage(file);
-  const casted = decoded.toFloat();
-  const result = casted.expandDims(0);
-  decoded.dispose();
-  casted.dispose();
-  return result;
-}
-
 
 //main function
 async function lod() {
@@ -62,64 +46,86 @@ async function main(file, filename) {
 
     console.log(labeledFaceDescriptors);
   }
-
   var facename = await faceRecognition(file);
-  return [facename];
+  if (Object.keys(facename).length != 0) {
+    if (facename._label == "unknown") {
+      return [{
+        _label: "Mostafa this person I can't regognise him  "
+      }];
+    } else {
+      return [facename];
+    }
+  } else {
+    return [{
+      _label: "error image type not support"
+    }];
+  }
+
 }
 
 async function faceRecognition(imageFile) {
   // console.log("4");
+  try {
+    const referenceImage = await canvas.loadImage(imageFile)
+    const faceMatcher = new faceapi.FaceMatcher(
+      labeledFaceDescriptors,
+      0.6
+    );
+    const displaySize = { width: referenceImage.width, height: referenceImage.height };
+    const detections = await faceapi
+      .detectSingleFace(referenceImage)
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+    const resizedDetections = faceapi.resizeResults(
+      detections,
+      displaySize
+    );
+    // console.log(resizedDetections);
+    const results = faceMatcher.findBestMatch(resizedDetections.descriptor)
+    console.log(results);
+    return results;
+  } catch (error) {
+    return error;
+  }
 
-  const referenceImage = await canvas.loadImage(imageFile)
-  const faceMatcher = new faceapi.FaceMatcher( 
-    labeledFaceDescriptors,
-    0.6
-  );
-  const displaySize = { width: referenceImage.width, height: referenceImage.height };
-  const detections = await faceapi
-    .detectSingleFace(referenceImage)
-    .withFaceLandmarks()
-    .withFaceDescriptor();
-  const resizedDetections = faceapi.resizeResults(
-    detections,
-    displaySize
-  );
-  // console.log(resizedDetections);
-  const results = faceMatcher.findBestMatch(resizedDetections.descriptor)
-  return results;
+
+
 }
 
- 
+
 // function handel traninig image for tran  model
 async function loadLabeledImages() {
   // console.log("5");
 
   const labels = [
-    'Mostafa soltan',
+    'the person name is Mostafa soltan he is your brother',
     'Mohamed',
-    'Hamza',
-    'Ali',
-    'Omer',
-    'Salama',
-    'Fady adalat'
+    // 'Hamza',
+    // 'Ali',
+    // 'Omer',
+    // 'Salama',
+    // 'Fady adalat'
   ];
   return Promise.all(
-     
+
     labels.map(async (label) => {
       // console.log("6");
       const descriptions = [];
       for (let i = 1; i <= 2; i++) {
-        
+
         const img = await canvas.loadImage(
-          `http://localhost:3000/${label}/${i}.jpg`
-        );
-        const detections = await faceapi
-          .detectSingleFace(img)
-          .withFaceLandmarks()
-          .withFaceDescriptor();
+        `http://localhost:3000/${label}/${i}.jpg`
+      );
+      const detections = await faceapi
+        .detectSingleFace(img)
+        .withFaceLandmarks()
+        .withFaceDescriptor();
         descriptions.push(detections.descriptor);
       }
+      // //////////////////////////////////////////
+      // var fs = require('fs');
 
+      // /////////////////////////////////////////////
       return new faceapi.LabeledFaceDescriptors(label, descriptions);
     })
   );
